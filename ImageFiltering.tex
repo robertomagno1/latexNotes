@@ -1,0 +1,665 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}  % Include the amsmath package for better math support
+\usepackage{amsfonts} % Optional: Include if you want to use math fonts
+\usepackage{amssymb}  % Optional: Include for additional math symbols
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\title{FDS HM1 Theory review}
+\author{Roberto Magno Mazzotta}
+\date{October 2024}
+
+\begin{document}
+
+\maketitle
+
+\section{Gauss filter}
+
+
+
+\title{Why an Odd-Sized Filter is Necessary for Convolution}
+\author{Data Scientist}
+
+
+
+\maketitle
+
+\subsection{}section{Introduction}
+
+Ensuring that the \textbf{filter size is odd} for convolution is crucial for maintaining symmetry around a central pixel. In this document, we explain the need for an odd-sized filter and provide a mathematical justification for why an even-sized filter would result in inaccuracies during convolution operations.
+
+\subsection{}section{Symmetry and Central Reference Point}
+
+When applying a convolution, the filter (kernel) is centered over a pixel, and neighboring pixels are weighted to compute the final output for that pixel. If the filter is \textbf{odd-sized}, it has a clearly defined center, which ensures that pixels around the center are symmetrically included in the computation. If the filter size is \textbf{even}, the center would be ambiguous, causing misalignment and potentially introducing bias.
+
+\subsection{Mathematical Explanation}
+
+Let’s assume the filter size is $N$. A filter kernel is a matrix, typically of size $N \times N$, where $N$ is the filter size. Convolution involves placing the kernel over a pixel in the image and performing a weighted sum of the pixels under the kernel. This process works best when the filter is centered over a single pixel.
+
+\subsection{}subsection{Odd-Sized Filter (Example: $N = 3$)}
+For an odd-sized filter $N = 3$, we can represent the kernel as:
+
+\[
+\begin{bmatrix}
+a_{11} & a_{12} & a_{13} \\
+a_{21} & a_{22} & a_{23} \\
+a_{31} & a_{32} & a_{33}
+\end{bmatrix}
+\]
+
+The center pixel in the filter is clearly defined at position $(2,2)$ (using 1-based indexing), or $\left( \frac{N}{2} + 0.5, \frac{N}{2} + 0.5 \right)$. When you place this filter over an image, the center pixel of the filter aligns perfectly with a pixel in the image, while the surrounding pixels are symmetrically included in the convolution operation.
+
+This allows the filter to apply weights symmetrically to the pixels around the central point, ensuring the convolution operation is unbiased and consistent.
+
+\subsubsection{Even-Sized Filter (Example: $N = 4$)}
+
+For an even-sized filter $N = 4$, we can represent the kernel as:
+
+\[
+\begin{bmatrix}
+a_{11} & a_{12} & a_{13} & a_{14} \\
+a_{21} & a_{22} & a_{23} & a_{24} \\
+a_{31} & a_{32} & a_{33} & a_{34} \\
+a_{41} & a_{42} & a_{43} & a_{44}
+\end{bmatrix}
+\]
+
+Now the center is ambiguous because there is no single middle pixel. The closest approximation for the center would be somewhere between $(2,2)$ and $(3,3)$. This lack of a clearly defined center causes the filter to misalign with the image pixels during convolution. The result is a non-symmetric treatment of neighboring pixels, potentially introducing bias and inaccuracies in the convolution result.
+
+\subsection{Symmetry in Convolution}
+
+The key point of convolution is to apply a kernel symmetrically around a central pixel. For an odd-sized filter $N$, the central pixel is positioned at $\frac{N}{2}$ (integer division), making the kernel symmetric with respect to this central pixel. However, for an even-sized filter, there is no central pixel that maintains symmetry, and thus the kernel will produce biased results.
+
+\subsubsection{Mathematical Proof}
+
+For an odd-sized kernel $N$, you can define the positions of pixels symmetrically around the center as:
+
+\[
+\text{Center of filter at } \left( \frac{N}{2}, \frac{N}{2} \right) 
+\]
+
+For example, for $N = 3$, the center is at position $(1,1)$ in zero-indexing, and the convolution operation can be written as:
+
+\[
+I'(x,y) = \sum_{i=-1}^{1} \sum_{j=-1}^{1} K(i,j) \cdot I(x+i, y+j)
+\]
+
+Where $I$ is the image, $K$ is the kernel, and the summation is symmetric around the central pixel $I(x, y)$.
+
+For an even-sized kernel $N = 4$, the center would fall between two pixels, and no symmetric summation is possible. The filter cannot equally distribute its weights around a central pixel:
+
+\[
+I'(x,y) = \sum_{i=-2}^{1} \sum_{j=-2}^{1} K(i,j) \cdot I(x+i, y+j)
+\]
+
+This misalignment leads to non-symmetric contributions from neighboring pixels, causing biases in the filtered result.
+
+\subsection{Conclusion}
+
+Using an \textbf{odd-sized filter} ensures that the filter has a well-defined center, making the convolution operation symmetric and mathematically consistent. This is crucial in image processing tasks such as smoothing, edge detection, and feature extraction, where symmetry is important for accurate results.
+
+Therefore, the code ensures that the filter size is odd by adding 1 to even filter sizes to maintain symmetry during convolution, preventing issues like misalignment and bias in the output.
+
+
+
+\title{Mathematical and Algorithmic Solution for the Gaussian Filter}
+\author{Data Scientist}
+\date{\today}
+
+
+\maketitle
+
+\section{Introduction}
+
+In image processing, a Gaussian filter is commonly used for smoothing and reducing noise in images. It is a linear filter that gives more weight to pixels near the center of the kernel and less weight to pixels farther away, based on the Gaussian distribution. The Gaussian filter is essential for many applications, including edge detection and image enhancement.
+
+In this document, we explain the Gaussian filter mathematically and algorithmically, followed by the pseudocode implementation.
+
+\section{Mathematical Derivation of the Gaussian Filter}
+
+\subsection{Gaussian Function}
+
+The 1D Gaussian function is given by the formula:
+
+\[
+G(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{x^2}{2\sigma^2}\right)
+\]
+
+Where:
+\begin{itemize}
+    \item $x$ is the position relative to the center of the filter.
+    \item $\sigma$ is the standard deviation of the Gaussian distribution, which controls the spread (width) of the Gaussian curve.
+\end{itemize}
+
+This function defines how the intensity of a pixel's neighbors is weighted when the filter is applied. The closer a neighbor pixel is to the center, the more weight it gets, following the Gaussian bell curve.
+
+\subsection{Discrete Gaussian Filter}
+
+In practice, the Gaussian filter is applied to discrete images, so the Gaussian function is discretized over a set of positions \( x \) that range symmetrically around 0, based on the filter size. The filter size \( N \) is typically chosen as an odd number to ensure a well-defined center pixel. The discrete Gaussian filter for a given filter size is:
+
+\[
+G[x] = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{x^2}{2\sigma^2}\right)
+\]
+
+Here, \( G[x] \) represents the weight of the pixel at position \( x \) relative to the center pixel.
+
+\subsection{2D Gaussian Filter}
+
+The 2D Gaussian filter is an extension of the 1D Gaussian filter to two dimensions, and is defined as:
+
+\[
+G(x, y) = \frac{1}{2\pi\sigma^2} \exp\left(-\frac{x^2 + y^2}{2\sigma^2}\right)
+\]
+
+Where:
+\begin{itemize}
+    \item \( (x, y) \) are the coordinates relative to the center of the filter.
+    \item \( \sigma \) controls the spread of the 2D Gaussian function.
+\end{itemize}
+
+This 2D Gaussian function can be applied to each pixel of an image, weighting its neighboring pixels according to the Gaussian distribution.
+
+\section{Algorithmic Explanation of Gaussian Filter}
+
+The Gaussian filter smooths an image by applying the Gaussian function over a neighborhood of pixels. Here are the main steps:
+
+\begin{enumerate}
+    \item Choose a filter size \( N \). Typically, \( N \) is an odd number so that there is a central pixel in the filter.
+    \item Compute the 1D or 2D Gaussian filter using the Gaussian function, with the standard deviation \( \sigma \).
+    \item Apply the filter to the image by centering the filter over each pixel and performing a weighted sum of the neighboring pixels.
+    \item Normalize the resulting values to ensure that the pixel intensities remain within a valid range (e.g., 0-255 for grayscale images).
+\end{enumerate}
+
+The Gaussian filter is separable, meaning a 2D Gaussian filter can be decomposed into two 1D filters: one applied horizontally and one applied vertically. This makes the convolution process more efficient.
+
+\section{Pseudocode for Gaussian Filter}
+
+Here is the pseudocode for generating a 1D Gaussian filter based on the Python function you provided earlier:
+
+\begin{algorithm}
+\caption{Gaussian Filter Generation Pseudocode}
+\begin{algorithmic}[1]
+\Procedure{GaussianFilter}{$\sigma$, filter\_size}
+    \State \textbf{Input:} $\sigma$ (standard deviation), filter\_size (size of the filter)
+    \State \textbf{Output:} $Gx$ (Gaussian filter), $x$ (position array)
+    \State
+    \State \textit{// Ensure the filter size is odd}
+    \If {filter\_size \% 2 == 0}
+        \State filter\_size = filter\_size + 1
+    \EndIf
+    \State
+    \State \textit{// Calculate the range of $x$ values}
+    \State limit = filter\_size // 2
+    \State $x = $ range($-limit$, $limit + 1$)
+    \State
+    \State \textit{// Compute the Gaussian filter using the formula}
+    \ForAll {$x_i$ in $x$}
+        \State $Gx[x_i] = \frac{1}{\sqrt{2 \pi \sigma^2}} \exp\left(-\frac{x_i^2}{2 \sigma^2}\right)$
+    \EndFor
+    \State
+    \State \Return $Gx$, $x$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section{Conclusion}
+
+In this document, we have provided a mathematical and algorithmic explanation of the Gaussian filter, including the steps for generating the filter and applying it to an image. The pseudocode presented outlines how to compute a 1D Gaussian filter based on the standard deviation and filter size.
+
+\section*{Derivation of the Second Derivative of the Gaussian Function}
+
+We are given the Gaussian function:
+
+\begin{equation}
+G(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left( -\frac{x^2}{2\sigma^2} \right)
+\end{equation}
+
+To compute the second derivative \( \frac{d^2G(x)}{dx^2} \), we first compute the first derivative:
+
+\begin{equation}
+\frac{dG(x)}{dx} = -\frac{x}{\sigma^2} G(x)
+\end{equation}
+
+Now, we compute the second derivative by applying the product rule to the first derivative:
+
+\begin{align}
+\frac{d^2 G(x)}{dx^2} &= \frac{d}{dx} \left( -\frac{x}{\sigma^2} G(x) \right) \nonumber \\
+&= -\frac{1}{\sigma^2} G(x) - \frac{x}{\sigma^2} \frac{dG(x)}{dx}
+\end{align}
+
+Substitute \( \frac{dG(x)}{dx} = -\frac{x}{\sigma^2} G(x) \) into the equation:
+
+\begin{align}
+\frac{d^2 G(x)}{dx^2} &= -\frac{1}{\sigma^2} G(x) + \frac{x^2}{\sigma^4} G(x)
+\end{align}
+
+Factoring out \( G(x) \):
+
+\begin{equation}
+\frac{d^2 G(x)}{dx^2} = G(x) \left( \frac{x^2}{\sigma^4} - \frac{1}{\sigma^2} \right)
+\end{equation}
+
+Thus, the second derivative of the Gaussian function is:
+
+\begin{equation}
+\frac{d^2G(x)}{dx^2} = \frac{G(x)}{\sigma^2} \left( \frac{x^2}{\sigma^2} - 1 \right)
+\end{equation}
+
+
+\section{Introduction}
+The median filter is a non-linear filter used in signal processing to reduce noise. It operates by replacing each element of a signal with the median of its neighboring elements. This preserves important features such as edges while reducing outliers and noise.
+
+\section{Median Filter Derivation}
+Given a 1D signal \( S = [S(1), S(2), \dots, S(N)] \), the median filter works by sliding a window of size \( s \) across the signal. For each position \( p \), the filter replaces the value \( S(p) \) with the median of the values in its neighborhood \( \mathcal{N}_s(p) \), where \( \mathcal{N}_s(p) \) is defined as:
+
+\[
+\mathcal{N}_s(p) = \left[ S\left(p - \frac{s-1}{2}\right), \dots, S(p), \dots, S\left(p + \frac{s-1}{2}\right) \right]
+\]
+
+Thus, the filtered signal value at position \( p \) is:
+
+\[
+S_{\text{filtered}}(p) = \text{median} \left( S\left(p - \frac{s-1}{2}\right), \dots, S(p), \dots, S\left(p + \frac{s-1}{2}\right) \right)
+\]
+
+\section{Boundary Conditions}
+At the boundaries of the signal (i.e., near the start and end), the window extends outside the signal. To handle this, we use the strategy of copying the boundary values directly from the original signal:
+
+\[
+S_{\text{filtered}}(p) = S(p) \quad \text{for} \quad p < \frac{s-1}{2} \quad \text{or} \quad p > N - \frac{s-1}{2}
+\]
+
+This ensures that the filtered signal remains valid even at the boundaries.
+
+\section{Conclusion}
+The 1D median filter is an effective technique for noise reduction in signals. By replacing each value with the median of its neighbors, it preserves important features such as edges while removing noise and outliers. Handling boundaries carefully ensures that the filter can be applied to the entire signal.
+
+
+
+
+
+\section*{Pseudocode for 1D Median Filter}
+
+\begin{algorithm}
+\caption{1D Median Filter}
+\begin{algorithmic}[1]
+\Procedure{MedianFilter}{$S$, $s$}
+    \State $N \gets$ length of signal $S$
+    \State $k \gets s // 2$  \Comment{Half of the filter size}
+    \State Initialize $S_{\text{filtered}}$ as an array of zeros, length $N$
+    
+    \Comment{Loop through the signal, ignoring boundaries}
+    \For{$i \gets k$ to $N - k$}
+        \State Extract window of size $s$ centered at $S[i]$
+        \State Compute median of the window
+        \State Assign median to $S_{\text{filtered}}[i]$
+    \EndFor
+    
+    \Comment{Handle boundaries by copying original values}
+    \State $S_{\text{filtered}}[0:k] \gets S[0:k]$
+    \State $S_{\text{filtered}}[N-k:N] \gets S[N-k:N]$
+    
+    \State \Return $S_{\text{filtered}}$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+\title{Mathematical Explanation of the 1D Butterworth Filter}
+\author{Data Scientist}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section*{1D Butterworth Filter: Mathematical Derivation}
+
+The Butterworth filter is a frequency domain filter that creates a smooth transition between passband and stopband. It is defined by its flat frequency response in the passband and a gradual attenuation beyond a specified cutoff frequency.
+
+\subsection*{Formula}
+
+The transfer function \( H(x) \) of the Butterworth filter is given by:
+
+\[
+H(x) = \frac{1}{1 + \left( \frac{x}{\text{cutoff}} \right)^{2n}}
+\]
+
+Where:
+\begin{itemize}
+    \item \( x \) represents the frequency values, typically centered around 0.
+    \item \( \text{cutoff} \) is the frequency beyond which the filter starts attenuating.
+    \item \( n \) is the **order** of the Butterworth filter, determining the sharpness of the transition between the passband and stopband.
+\end{itemize}
+
+\subsection*{Intuition}
+
+The Butterworth filter is characterized by its maximally flat response in the passband and its smooth transition to the stopband. The order \( n \) controls the steepness of this transition:
+\begin{itemize}
+    \item When \( n = 1 \), the transition between passband and stopband is gradual.
+    \item Higher values of \( n \) result in a sharper transition, making the filter more selective about which frequencies it allows to pass.
+\end{itemize}
+
+The cutoff frequency \( \text{cutoff} \) determines where the filter begins to attenuate frequencies. Frequencies below the cutoff are passed through with minimal attenuation, while frequencies above the cutoff are progressively attenuated.
+
+\section*{Pseudocode for the 1D Butterworth Filter}
+
+\begin{algorithm}
+\caption{1D Butterworth Filter}
+\begin{algorithmic}[1]
+\Procedure{ButterworthFilter1D}{$\text{cutoff}, \text{filter\_size}, n$}
+    \State $k \gets \frac{\text{filter\_size}}{2}$ \Comment{Half the filter size for symmetric window}
+    \State Generate $x$ values symmetrically around zero: $x = [-k, -k+1, \dots, 0, \dots, k]$
+    \State Compute the Butterworth filter using the formula:
+    \[
+    H(x) = \frac{1}{1 + \left( \frac{x}{\text{cutoff}} \right)^{2n}}
+    \]
+    \State Return $H(x), x$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section*{Conclusion}
+
+The 1D Butterworth filter provides a smooth and gradual transition from the passband to the stopband, making it a popular choice in signal processing tasks. By adjusting the order \( n \) and the cutoff frequency, the filter can be fine-tuned to handle various applications.
+
+
+
+\title{Mathematical Explanation of the 2D Box Filter}
+\author{Data Scientist}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section*{2D Box Filter: Mathematical Derivation}
+
+A 2D Box filter is a linear filter that smooths an image by averaging the pixel values within a local neighborhood. The Box filter is commonly used to reduce noise and create a blurring effect in images.
+
+\subsection*{Mathematical Formula}
+
+Given an input image \( I(x, y) \) and a Box filter of size \( s \times s \), the filtered image at each pixel \( (x, y) \) is computed as:
+
+\[
+B(x, y) = \frac{1}{s^2} \sum_{i=-\frac{s}{2}}^{\frac{s}{2}} \sum_{j=-\frac{s}{2}}^{\frac{s}{2}} I(x+i, y+j)
+\]
+
+Where:
+\begin{itemize}
+    \item \( I(x, y) \) is the input image at position \( (x, y) \),
+    \item \( s \) is the size of the Box filter,
+    \item The Box filter applies equal weights to all pixels in the neighborhood.
+\end{itemize}
+
+\subsection*{Intuition Behind the Box Filter}
+
+The Box filter works by replacing each pixel's value with the average of its neighboring pixels. This results in a **smoothing effect**:
+\begin{itemize}
+    \item Noise and sharp transitions are reduced, creating a blur in the image.
+    \item However, important details like edges may also be blurred, leading to some loss of information.
+\end{itemize}
+
+The 1D Box filter can be extended to 2D by taking the outer product of the 1D filter with itself.
+
+\section*{Pseudocode for the 2D Box Filter}
+
+\begin{algorithm}
+\caption{2D Box Filter}
+\begin{algorithmic}[1]
+\Procedure{BoxFilter2D}{$\text{img}, \text{filter\_size}$}
+    \State $Bx \gets \text{Create 1D Box filter of size filter\_size}$
+    \State $B_{2D} \gets \text{Outer product of } Bx \text{ with itself}$
+    \State Apply 2D convolution of $B_{2D}$ with the image
+    \State \Return Filtered Image
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section*{Conclusion}
+
+
+
+\section*{2D Box Filter with Manual Convolution: Mathematical Derivation}
+
+The 2D Box filter is a simple linear filter that smooths an image by averaging the pixel values within a local neighborhood. Applying this filter involves performing a convolution between the input image and the Box filter kernel.
+
+\subsection*{Mathematical Formula for Convolution}
+
+The 2D convolution of an image \( I \) with a Box filter \( K \) of size \( s \times s \) is defined as:
+
+\[
+B(x, y) = \sum_{i=-\frac{s}{2}}^{\frac{s}{2}} \sum_{j=-\frac{s}{2}}^{\frac{s}{2}} K(i, j) I(x - i, y - j)
+\]
+
+Where:
+\begin{itemize}
+    \item \( I(x, y) \) is the input image.
+    \item \( K(i, j) \) is the Box filter kernel, where each element is equal to \( \frac{1}{s^2} \) (uniform averaging).
+    \item \( B(x, y) \) is the output smoothed image.
+\end{itemize}
+
+\subsection*{Boundary Conditions}
+
+When performing the convolution, special attention is required for the boundaries of the image. Common strategies include:
+\begin{itemize}
+    \item **Padding** the image with zeros.
+    \item **Replicating** the boundary pixels.
+    \item **Wrapping** around the image edges (periodic boundary conditions).
+\end{itemize}
+
+In our implementation, we will use **zero padding**, where the borders are treated as zeros.
+
+\section*{Pseudocode for 2D Box Filter with Manual Convolution}
+
+\begin{algorithm}
+\caption{2D Box Filter with Manual Convolution}
+\begin{algorithmic}[1]
+\Procedure{BoxFilter2D}{$\text{img}, \text{filter\_size}$}
+    \State $B \gets \frac{1}{\text{filter\_size}^2}$ \Comment{Create uniform 2D Box filter}
+    \State Pad the image with zeros to handle the boundaries
+    \For{each pixel $(x, y)$ in the image}
+        \State Multiply the Box filter with the neighborhood around $(x, y)$
+        \State Sum the result and assign it to the output image at $(x, y)$
+    \EndFor
+    \State \Return Filtered Image
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section*{Conclusion}
+
+The 2D Box filter can be implemented manually by performing 2D convolution between the image and the filter kernel. This approach smooths the image while reducing noise by averaging the neighborhood pixels.
+
+\section*{Laplacian of Gaussian (LoG) Filter with Separability: Mathematical Derivation}
+
+The Laplacian of Gaussian (LoG) filter is used for edge detection and is defined as the convolution of a 2D image with a Laplacian operator applied to a Gaussian smoothed image. The Laplacian operator is separable, meaning that the 2D convolution can be reduced to two 1D convolutions, which improves computational efficiency.
+
+\subsection*{Formula for the Laplacian of Gaussian (LoG)}
+
+The 2D Laplacian operator is defined as:
+
+$$
+\nabla^2 = \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2}
+$$
+
+When combined with a Gaussian smoothing filter, the LoG filter is:
+
+$$
+\nabla^2 G(x, y) = \frac{\partial^2 G(x)}{\partial x^2} + \frac{\partial^2 G(y)}{\partial y^2}
+$$
+
+\subsection*{Separability of the Laplacian of Gaussian}
+
+The key observation is that the 2D LoG filter can be applied as two **1D convolutions**:
+\begin{itemize}
+    \item First, apply the Laplacian operator along the \(x\)-axis (rows).
+    \item Then, apply the Laplacian operator along the \(y\)-axis (columns).
+\end{itemize}
+
+This reduces the computational cost from \(O(k^2)\) operations for a full 2D convolution to \(O(2k)\), where \(k\) is the filter size.
+
+\section*{Pseudocode for Laplacian of Gaussian (LoG) Filter Using Separability}
+
+\begin{algorithm}
+\caption{Laplacian of Gaussian (LoG) Filter Using Separability}
+\begin{algorithmic}[1]
+\Procedure{LaplaceFilter2D}{$\text{img}, \sigma, \text{filter\_size}$}
+    \State Ensure that the filter size is odd.
+    \State Generate the 1D Laplacian of Gaussian filter $L_x$.
+    
+    \Comment{Step 1: Apply 1D convolution along the rows (x-axis)}
+    \State $img\_x \gets$ Initialize image for intermediate result.
+    \For{each row $i$ in $\text{img}$}
+        \State Apply 1D convolution along row $i$ using $L_x$.
+    \EndFor
+
+    \Comment{Step 2: Apply 1D convolution along the columns (y-axis)}
+    \State $derived\_img \gets$ Initialize image for final result.
+    \For{each column $j$ in $img\_x$}
+        \State Apply 1D convolution along column $j$ using $L_x$.
+    \EndFor
+
+    \State \Return $derived\_img$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section*{Conclusion}
+
+By leveraging the separability property of the Laplacian operator, we reduce the computational complexity of the Laplacian of Gaussian filter. Instead of performing a full 2D convolution, we can perform two 1D convolutions, significantly speeding up the process.
+
+
+
+
+
+\section*{2D Gaussian Filter: Mathematical Derivation}
+
+A 2D Gaussian filter is widely used for smoothing or blurring an image. The filter is based on the Gaussian function, which gives weights to the neighboring pixels according to their distance from the center, with closer pixels having higher weights.
+
+\subsection*{Gaussian Function}
+
+The 2D Gaussian function is given by:
+
+\[
+G(x, y) = \frac{1}{2\pi\sigma^2} \exp \left( -\frac{x^2 + y^2}{2\sigma^2} \right)
+\]
+
+Where:
+\begin{itemize}
+    \item \( \sigma \) is the standard deviation, controlling the width of the Gaussian.
+    \item \( (x, y) \) are the pixel coordinates relative to the center of the filter.
+\end{itemize}
+
+\subsection*{Separability of the Gaussian Filter}
+
+The 2D Gaussian filter can be separated into two **1D Gaussian filters**, applied along the rows (x-axis) and columns (y-axis). This reduces computational complexity, as instead of applying a full 2D convolution, we can apply two 1D convolutions.
+
+The 1D Gaussian filter is defined as:
+
+\[
+G(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp \left( -\frac{x^2}{2\sigma^2} \right)
+\]
+
+\section*{Pseudocode for Gaussian Filter Using Separability}
+
+\begin{algorithm}
+\caption{Gaussian Filter}
+\begin{algorithmic}[1]
+\Procedure{GaussianFilter2D}{$\text{img}, \sigma$}
+    \State Determine the filter size: $\text{filter\_size} = 6 \times \sigma$
+    \State Ensure the filter size is odd.
+    \State Generate the 1D Gaussian filter $G_x$ using the Gaussian function.
+
+    \Comment{Step 1: Apply 1D convolution along rows (x-axis)}
+    \State $img\_x \gets$ Convolve $G_x$ with each row of the image.
+
+    \Comment{Step 2: Apply 1D convolution along columns (y-axis)}
+    \State $smooth\_img \gets$ Convolve $G_x$ with each column of $img\_x$.
+
+    \State \Return $smooth\_img$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section*{Conclusion}
+
+The Gaussian filter is an effective tool for image smoothing. By leveraging the separability property, the 2D Gaussian filter can be efficiently implemented using two 1D convolutions, one along the rows and one along the columns.
+
+
+
+\section*{Discrete Laplacian Filter: Mathematical Derivation}
+
+The Laplacian operator is a second-order derivative operator used in image processing to detect regions of rapid intensity change, such as edges. The discrete approximation of the Laplacian is typically applied using a **convolution kernel**.
+
+\subsection*{Laplacian Operator}
+
+The continuous form of the Laplacian operator is given by:
+
+\[
+\nabla^2 f(x, y) = \frac{\partial^2 f}{\partial x^2} + \frac{\partial^2 f}{\partial y^2}
+\]
+
+In image processing, the **discrete approximation** of this operator is implemented using the following 3x3 convolution kernel:
+
+\[
+K_L = \begin{bmatrix}
+0 & 1 & 0 \\
+1 & -4 & 1 \\
+0 & 1 & 0
+\end{bmatrix}
+\]
+
+\subsection*{Convolution with the Laplacian Kernel}
+
+The convolution of an image \( I \) with the Laplacian kernel \( K_L \) at a pixel \( (x, y) \) is computed as:
+
+\[
+L(x, y) = \sum_{i=-1}^{1} \sum_{j=-1}^{1} I(x + i, y + j) K_L(i, j)
+\]
+
+Where \( I(x, y) \) is the pixel intensity at location \( (x, y) \), and \( K_L(i, j) \) is the kernel value at position \( (i, j) \).
+
+\section*{Steps to Apply the Discrete Laplacian Operator}
+
+\begin{enumerate}
+    \item **Padding**: First, pad the input image to handle boundary conditions.
+    \item **Window Extraction**: For each pixel in the padded image, extract a 3x3 window centered at the current pixel.
+    \item **Convolution**: Apply the Laplacian kernel by performing element-wise multiplication between the window and the kernel, and summing the results.
+    \item **Edge Detection**: The result highlights areas of rapid intensity change, which correspond to edges in the image.
+\end{enumerate}
+
+\section*{Pseudocode for the Discrete Laplacian Filter}
+
+\begin{algorithm}
+\caption{Discrete Laplacian Filter}
+\begin{algorithmic}[1]
+\Procedure{DiscreteLaplacian}{$\text{img}$}
+    \State Pad the image with a 1-pixel border (use reflect padding).
+    \State Define the Laplacian kernel: 
+    \[
+    K_L = \begin{bmatrix}
+    0 & 1 & 0 \\
+    1 & -4 & 1 \\
+    0 & 1 & 0
+    \end{bmatrix}
+    \]
+    \State Initialize output image $L$ as a zero matrix.
+    \For{each pixel $(x, y)$ in the image}
+        \State Extract the $3 \times 3$ window around $(x, y)$.
+        \State Compute $L(x, y) = \sum K_L \cdot \text{window}$.
+    \EndFor
+    \State \Return the resulting image $L$.
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section*{Conclusion}
+
+The discrete Laplacian filter is a powerful tool for edge detection. By applying the second derivative of the image, the filter highlights areas of rapid intensity change. The convolution with the Laplacian kernel is simple yet effective in emphasizing edges in images.
+
+
+\end{document}
+
+
